@@ -247,23 +247,22 @@ func (c *Client) handleErrorResp(resp *http.Response) error {
 	data, _ := io.ReadAll(resp.Body)
 	var errRes ErrorResponse
 	err := json.NewDecoder(bytes.NewBuffer(data)).Decode(&errRes)
-	if err != nil || errRes.Error == nil {
-		reqErr := &RequestError{
+	if err != nil {
+		return &APIError{
 			HTTPStatusCode: resp.StatusCode,
-			Err:            err,
+			Message:        string(data),
 		}
-		if errRes.Error != nil {
-			reqErr.Err = errRes.Error
-		}
-		if reqErr.Err == nil {
-			reqErr.Err = errors.New(string(data))
-		}
-		return reqErr
 	}
 
-	errRes.Error.HTTPStatusCode = resp.StatusCode
-	errRes.Error.Message = string(data)
-	return errRes.Error
+	reqErr := &RequestError{
+		HTTPStatusCode: resp.StatusCode,
+		Err:            errRes.Error,
+	}
+	if reqErr.Err == nil {
+		reqErr.Err = errors.New(string(data))
+	}
+
+	return reqErr
 }
 
 func containsSubstr(s []string, e string) bool {
