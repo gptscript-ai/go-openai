@@ -2,8 +2,10 @@ package openai
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -242,21 +244,18 @@ func (c *Client) fullURL(suffix string, args ...any) string {
 }
 
 func (c *Client) handleErrorResp(resp *http.Response) error {
+	data, _ := io.ReadAll(resp.Body)
 	var errRes ErrorResponse
-	err := json.NewDecoder(resp.Body).Decode(&errRes)
-	if err != nil || errRes.Error == nil {
-		reqErr := &RequestError{
-			HTTPStatusCode: resp.StatusCode,
-			Err:            err,
-		}
-		if errRes.Error != nil {
-			reqErr.Err = errRes.Error
-		}
-		return reqErr
+	err := json.NewDecoder(bytes.NewBuffer(data)).Decode(&errRes)
+	if err == nil && errRes.Error != nil && errRes.Error.Message != "" {
+		errRes.Error.HTTPStatusCode = resp.StatusCode
+		return errRes.Error
 	}
 
-	errRes.Error.HTTPStatusCode = resp.StatusCode
-	return errRes.Error
+	return &RequestError{
+		HTTPStatusCode: resp.StatusCode,
+		Err:            errors.New(string(data)),
+	}
 }
 
 func containsSubstr(s []string, e string) bool {
